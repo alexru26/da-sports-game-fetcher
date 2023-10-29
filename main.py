@@ -1,7 +1,6 @@
 from email.mime.text import MIMEText
 import smtplib
 from datetime import datetime, timedelta
-import math
 
 import requests
 from bs4 import BeautifulSoup
@@ -18,9 +17,10 @@ def create_list():
     for i in range(7):
         now += timedelta(days=1)
         file.write(now.strftime('%A') + " - " + now.strftime("%b %d") + "\n")
-        stuff = soup.find('div', attrs={"class": "fsCalendarDate", "data-day": now.strftime('%d')})
-        if(len(stuff.parent['class']) == 2 and stuff.parent['class'][1] == "fsStateHasEvents"):
-            #print("has events!")
+        stuff = soup.find('div', attrs={"class": "fsCalendarDate", "data-day": now.strftime('%#d'), "data-month": str(int(now.strftime("%#m"))-1)})
+        if stuff is None:
+            file.write("Something went wrong.")
+        elif(len(stuff.parent['class']) == 2 and stuff.parent['class'][1] == "fsStateHasEvents"):
             a = stuff.find_next_siblings()
             for game in a:
                 bruh_momento = " ".join(game.text.replace("*", "").split())[20:]
@@ -53,7 +53,6 @@ def send_email():
     f.close()
 
     # creates actual email and sends it
-    """
     msg = MIMEText(body)
     msg['Subject'] = subject
     msg['From'] = sender
@@ -62,7 +61,6 @@ def send_email():
        smtp_server.login(sender, p)
        smtp_server.sendmail(sender, recipients, msg.as_string())
     print("send email!")
-    """
 
 def main():
     create_list()
