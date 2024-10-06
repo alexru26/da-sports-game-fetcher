@@ -1,49 +1,79 @@
 from email.mime.text import MIMEText
 import smtplib
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+
+from icalendar import Calendar
 
 import requests
-from bs4 import BeautifulSoup
 
-response = requests.get("https://www.da.org/fs/elements/2244/")
-soup = BeautifulSoup(response.text, 'html.parser')
+response = requests.get("https://ical.da.org/all_athletics.ics")
 
-file = open("log.txt", 'r+')
-file.truncate(0)
+ical = response.content
+calender = Calendar.from_ical(ical)
+
+today = datetime.today()
+monday = today + timedelta(days=1)
+sunday = monday + timedelta(days=6)
+
+games_list = {
+    'Monday': [],
+    'Tuesday': [],
+    'Wednesday': [],
+    'Thursday': [],
+    'Friday': [],
+    'Saturday': [],
+    'Sunday': []
+}
 
 def create_list():
-    now = datetime.now()
+    global games_list
 
-    for i in range(7):
-        now += timedelta(days=1)
-        file.write(now.strftime('%A') + " - " + now.strftime("%b %d") + "\n")
-        stuff = soup.find('div', attrs={"class": "fsCalendarDate", "data-day": now.strftime('%#d'), "data-month": str(int(now.strftime("%#m"))-1)})
-        if stuff is None:
-            file.write("Something went wrong.")
-        elif(len(stuff.parent['class']) == 2 and stuff.parent['class'][1] == "fsStateHasEvents"):
-            a = stuff.find_next_siblings()
-            for game in a:
-                bruh_momento = " ".join(game.text.replace("*", "").split())[20:]
-                if(bruh_momento[:13] == "Cross-Country" and bruh_momento[16:18] == "MS"):
-                    continue
-                elif(bruh_momento[bruh_momento.find('-')+2:bruh_momento.find('-')+4] == "MS"):
-                    continue    
-                file.write(bruh_momento + "\n")
+    for component in calender.walk():
+        if component.name == "VEVENT":
+            start = component.get('dtstart').dt
+
+            # Check if the event starts within the desired range
+            if isinstance(start, datetime):
+                if monday <= start <= sunday:
+                    summary = component.get('summary').replace('  ', ' ')
+                    if summary[:13] == "Cross-Country" and summary[16:18] == "MS":
+                        continue
+                    elif summary[summary.find('-') + 2:summary.find('-') + 4] == "MS":
+                        continue
+                    games_list[start.strftime('%A')].append(summary + " " + start.strftime('%I:%M %p'))
+            elif isinstance(start, date):
+                if monday.date() <= start <= sunday.date():
+                    summary = component.get('summary').replace('  ', ' ')
+                    if summary[:13] == "Cross-Country" and summary[16:18] == "MS":
+                        continue
+                    elif summary[summary.find('-') + 2:summary.find('-') + 4] == "MS":
+                        continue
+                    games_list[start.strftime('%A')].append(summary + " " + start.strftime('%I:%M %p'))
+
+
+def write_to_file():
+    file = open("log.txt", 'r+')
+    file.truncate(0)
+
+    date_tracker = monday
+    for day in games_list:
+        file.write(day + ' - ' + date_tracker.strftime('%b %d') + '\n')
+        if len(games_list[day]) == 0:
+            file.write('No games!\n')
         else:
-            file.write("No games!\n")
-        file.write("\n")
-    file.close()
+            for game in games_list[day]:
+                file.write(game + '\n')
+        file.write('\n')
+        date_tracker += timedelta(days=1)
+
 
 def send_email():
     # opens text file for info
-    now = datetime.now()
-    day = now.strftime("%b %d")
-    week_end = (now + timedelta(days=6)).strftime("%b %d")
     with open("gmail.txt", "r") as f:
         text = f.readlines()
 
     # input data for email
-    subject = day + " - " + week_end + " sports games"
+    subject = monday.strftime('%b %d') + " - " + sunday.strftime('%b %d') + " sports games"
     body = open("log.txt", 'r').read()
     sender = text[0].strip()[17:]
     recipients = []
@@ -64,7 +94,14 @@ def send_email():
 
 def main():
     create_list()
-    send_email()
+    write_to_file()
+    while True:
+        x = input('Confirm? (Y)es (N)o: ')
+        if x == 'Y':
+            send_email()
+            break
+        elif x == 'N':
+            break
 
 if __name__ == '__main__':
     main()

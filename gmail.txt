@@ -1,6 +1,6 @@
 email of sender: rualex2008@gmail.com
-key: cwsc ljix uedc uzvs
+key:
 
 recipients:
 26ru@da.org
-26hackman@da.org
+26jones@da.org
